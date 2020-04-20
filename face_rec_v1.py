@@ -9,7 +9,7 @@ import os
 
 open_door = False;
 
-test_dir = './data/'
+test_dir = './data/whitelist/'
 
 
 camera = picamera.PiCamera()
