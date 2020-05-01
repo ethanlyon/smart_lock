@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 """
-Created on Wed Apr 15 12:30:01 2020
-
-@author: ethan
+By Ethan Lyon for ELEC574. Rice University Spring 2020
+The evaluation sript evaluating the facial recognition library with any 
+facial dataset found in the test_dir and is of the structure where 
+every subject has their own folder in the test_dir
+with their name and pictures of their face in that folder.
 """
 
 import os
-import cv2
-import pandas as pd
 import numpy as np
 import face_recognition
 import time
@@ -19,7 +18,7 @@ def print_time(exec_time, typeof = "Execution"):
 time0 = time.time()
 test_dir = './data/lfw_funneled/'
 people_list = os.listdir(test_dir)
-N_req = 5
+N_req = 10
 multiple_face_names = []
 for p in people_list:
     img_list = os.listdir(test_dir + p)
@@ -63,7 +62,7 @@ print("Found removed faces: " + str(removed_faces))
 
 faces_indx = list(range(len(new_faces)))
 print("Faces: " + str(faces_list))
-
+# Create embedding database
 prev_done = -1
 for indx in faces_indx:
     face_name = faces_list[indx]
@@ -106,6 +105,8 @@ faces_list = list(face_db.keys())
 faces_indx = list(range(len(faces_list)))
 face_db_encodings = (list(face_db.values()))
 
+#False Positive Rate Evaluation
+
 et0 = time.time()
 evaluation_db = dict(zip(face_db.keys(), []))
 eval_indx = 0
@@ -120,7 +121,7 @@ for eval_name in faces_list:
         if(test_n_face == 0 or eval_n_face == 0):
             eval_arr.append(0)
         elif(test_n_face == 1):
-            match = face_recognition.compare_faces(test_enc[0], eval_enc)[0]
+            match = face_recognition.compare_faces(test_enc[0], eval_enc, tolerance = 0.5)[0]
             if(match):
                 eval_arr.append(1)
             else:
@@ -137,7 +138,65 @@ for eval_name in faces_list:
     if(eval_indx % int(.01*len(people_list)) == 0):
         print(str(100*(eval_indx + 1)//(len(people_list))) + "%...", end="\r")
     eval_indx += 1
+#%%
+
+#False Negative Rate Evalutaion
+
+mface_db = {}
+cntm = 0
+for mface in multiple_face_names:
+    fdir = test_dir + mface
+    image_list = os.listdir(fdir)
+    eval_i = 0
+    f_img = None
+    found_ref = False
+    for i in range(len(image_list)):
+        eval_i = i
+        eval_img = image_list[i]
+        eval_loc = test_dir + mface + '/' + os.listdir(test_dir + mface)[i]
+        f_img = face_recognition.load_image_file(eval_loc)
+        face_locations = face_recognition.face_locations(f_img)
+        N_face_loc = len(face_locations)
+        if(not N_face_loc == 1):
+            print("Incorrect number of faces in img: " + eval_img + ". " + "Using the next img in folder." )
+        else:
+            found_ref = True
+            break
+    if(not found_ref):
+        #Don't use this person for testing if no suitable images can be found for face recognition
+        continue
+    eval_img = image_list.pop(eval_i)
+    eval_enc = face_recognition.face_encodings(f_img)
+    acc_arr = []
+    for im in image_list:
+        test_loc = test_dir + mface + '/' + im
+        test_img = face_recognition.load_image_file(test_loc)
+        face_locations = face_recognition.face_locations(test_img)
+        N_face_loc_test = len(face_locations)
+        if(N_face_loc_test == 0):
+            #If no faces are found, count as a miss and continue to the next face
+            acc_arr.append(0)
+            continue
+        test_enc = face_recognition.face_encodings(test_img)
+        match = face_recognition.compare_faces(test_enc[0], eval_enc, tolerance = 0.5)[0]
+        acc_arr.append(match)
     
+    mface_db[mface] = [acc_arr, 100*sum(acc_arr)/len(acc_arr)]
+    print(mface + " accuracy: " + str(100*sum(acc_arr)/len(acc_arr)) + "%. " 
+          + "Test images: " + str(len(image_list)) + ". Progress: " + str(100*(cntm/len(multiple_face_names))) + "%" )
+    cntm += 1
+
+        
+#%%        
+    
+# Analysis of results and plotting of graphs
+    
+total_fp_arr = np.hstack([list(mface_db.values())[i][0] for i in range(len(list(mface_db.values())))])
+individual_fp_acc = ([list(mface_db.values())[i][1] for i in range(len(list(mface_db.values())))])
+indv_avg_acc = np.mean(individual_fp_acc)
+
+fn_rate = 100 - 100*sum(total_fp_arr)/len(total_fp_arr)
+print("False Negative Rate: " + str(fn_rate))
 eval_mat = list(evaluation_db.values())
 et1 = time.time()
 eval_time = et1 - et0
@@ -152,7 +211,13 @@ false_pos = 100*(np.sum(eval_mat) - np.sum(np.diag(eval_mat)))/(len(row_sum)*len
 print("Accuracy: " + str(acc) + "%")
 print("False Positive rate: " + str(false_pos) + "%")
 
+plt.imshow(eval_mat)
+plt.colorbar()
+plt.figure()
+plt.show()
 
+plt.stem(100- np.flip(np.sort(individual_fp_acc)));plt.title("False Negative Rate for subjects with 10+ images");plt.xlabel("Subject #");plt.ylabel("False Negative Rate in %");plt.figure();plt.show()
+plt.stem(100*np.sort(row_sum)/5749); plt.title("False Positive Rate per Subject"); plt.xlabel("Subject #"); plt.ylabel("False Positive Rate in %");plt.figure();plt.show()
 
 exec_time = time.time() - time0
 print_time(exec_time, "Total")
