@@ -3,9 +3,11 @@ import picamera
 import numpy as np
 import os
 
-# Get a reference to the Raspberry Pi camera.
-# If this fails, make sure you have a camera connected to the RPi and that you
-# enabled your camera in raspi-config and rebooted first.
+"""
+OLD FACE REC SCRIPT
+Please see face_rec_v2.py for the newest version. :)
+
+"""
 
 open_door = False;
 

@@ -3,11 +3,20 @@ import picamera
 import numpy as np
 import os
 import time
+from datetime import datetime
+from datetime import date
 from servo_control import Servo
 
-# Get a reference to the Raspberry Pi camera.
-# If this fails, make sure you have a camera connected to the RPi and that you
-# enabled your camera in raspi-config and rebooted first.
+"""
+Created by Ethan Lyon for ELEC574. Rice University Spring 2020
+This script uses the RPi's camera and the facial recognition library to
+recognize the faces of people in the 'data/whitelist/' folder.
+Will create two files. A data base of names with the facial embedding features 
+and another file of all of the names. Will take pictures every two seconds about
+and compare the faces it finds with every known face to see if there's a match.
+
+When a match is found, the servo is actuated via the original servo_control.py class.
+"""
 
 def open_close_door(servo, setup_new_servo = True):
     if(setup_new_servo):
@@ -22,6 +31,8 @@ def open_close_door(servo, setup_new_servo = True):
         time.sleep(1.5)
         servo.rotate_and_lock(0, wait_time = 0.7)
 
+
+#Test the servo's capabilities
 print("Setting up Servo..")
 SERVO_PIN = 17
 serv = Servo(pin = SERVO_PIN, angle = 0)
@@ -41,6 +52,11 @@ output = np.empty((240, 320, 3), dtype=np.uint8)
 
 # Load a sample picture and learn how to recognize it.
 print("Loading encodings...")
+
+if(not os.path.exists('recognized_ringers')):
+    os.makedirs('recognized_ringers')
+if(not os.path.exists('unknown_ringers')):
+    os.makedirs('unknown_ringers')
 if(os.path.exists('face_db.npy')):
     face_db = np.load('face_db.npy', allow_pickle = True).item()
     print("DB Loaded")
@@ -99,6 +115,12 @@ face_db_encodings = (list(face_db.values()))
 face_locations = []
 face_encodings = []
 
+
+# Begin automatic capture of image from Pi's camera every 2 seconds.
+# Perfoms facial detection and recognition on very photo taken. Will print out
+# The name of those it recognizes and actaute the servo if your face is
+# contained in the data folder
+
 img_cnt = 0
 while True:
     print("Capturing image " + str(img_cnt))
@@ -123,8 +145,16 @@ while True:
             name = "<Unknown Person>"
             
             if match[0]:
-                name = faces_list[indx]
+                name = (faces_list[indx]).split(".")[0]
+                print("I see someone named {}".format(name))
+                print("Opening door for {}".format(name))
                 open_close_door(SERVO_PIN)
-                open_door = True #Code to open door goes here
-                print("I see someone named {}!".format(name))
+                open_door = True 
+            # Log the person found in the image and time of button press
+            log = open('log.txt','a')
+            if(name == "<Unknown Person>"):
+                log.write(date.today().strftime("%B %d, %Y") + " - " + datetime.now().strftime("%H:%M:%S") + ": "+ "Unknown Person\n")
+            else:
+                log.write(date.today().strftime("%B %d, %Y") + " - " + datetime.now().strftime("%H:%M:%S") + ": " + name + "\n")
+            log.close()
             
